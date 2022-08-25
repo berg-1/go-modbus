@@ -64,7 +64,7 @@ func (e *ModbusError) Error() string {
 
 // ProtocolDataUnit (PDU) 独立于底层通信层 -> 功能码 + 数据
 type ProtocolDataUnit struct {
-	SlaveId      byte
+	//SlaveId      byte
 	FunctionCode byte
 	Data         []byte
 }

@@ -109,7 +109,7 @@ func (cli *client) SetSlaveId(id byte) {
 }
 
 // Encode 将 PDU 转换成帧并返回
-func Encode(pdu *ProtocolDataUnit) (adu []byte, err error) {
+func (cli *client) Encode(pdu *ProtocolDataUnit) (adu []byte, err error) {
 	length := len(pdu.Data) + 4
 	if length > rtuMaxSize {
 		err = fmt.Errorf("modbus: 数据 '%v' 的长度不能大于 '%v'", length, rtuMaxSize)
@@ -117,7 +117,7 @@ func Encode(pdu *ProtocolDataUnit) (adu []byte, err error) {
 	}
 	adu = make([]byte, length)
 
-	adu[0] = pdu.SlaveId      // 从设备ID
+	adu[0] = cli.slaveId      // 从设备ID
 	adu[1] = pdu.FunctionCode // 功能码
 	copy(adu[2:], pdu.Data)   // 传输数据
 
@@ -156,7 +156,6 @@ func Decode(adu []byte) (pdu *ProtocolDataUnit, err error) {
 	}
 	// 功能码和数据封装
 	pdu = &ProtocolDataUnit{
-		SlaveId:      adu[0],
 		FunctionCode: adu[1],
 		Data:         adu[2 : length-2],
 	}
@@ -165,7 +164,8 @@ func Decode(adu []byte) (pdu *ProtocolDataUnit, err error) {
 
 // send 发送 PDU，返回响应的 PDU
 func (cli *client) send(request *ProtocolDataUnit) (response *ProtocolDataUnit, err error) {
-	adu, err := Encode(request)
+	adu, err := cli.Encode(request)
+	request.Data[0] = cli.slaveId
 	if err != nil {
 		return
 	}
@@ -229,7 +229,6 @@ func (cli *client) Send(aduRequest []byte) (aduResponse []byte, err error) {
 
 func (cli *client) ReadInputRegisters(address, quantity uint16) (result []byte, err error) {
 	request := ProtocolDataUnit{
-		SlaveId:      cli.slaveId,
 		FunctionCode: FuncCodeReadInputRegisters,
 		Data:         dataBlock(address, quantity),
 	}
@@ -249,7 +248,6 @@ func (cli *client) ReadInputRegisters(address, quantity uint16) (result []byte, 
 
 func (cli *client) ReadHoldingRegisters(address, quantity uint16) (result []byte, err error) {
 	request := ProtocolDataUnit{
-		SlaveId:      cli.slaveId,
 		FunctionCode: FuncCodeReadHoldingRegisters,
 		Data:         dataBlock(address, quantity),
 	}
@@ -269,7 +267,6 @@ func (cli *client) ReadHoldingRegisters(address, quantity uint16) (result []byte
 
 func (cli *client) WriteSingleRegister(address, value uint16) (results []byte, err error) {
 	request := ProtocolDataUnit{
-		SlaveId:      cli.slaveId,
 		FunctionCode: FuncCodeWriteSingleRegister,
 		Data:         dataBlock(address, value),
 	}
