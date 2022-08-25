@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	rtuMinSize = 4
-	rtuMaxSize = 256
+	rtuMinSize       = 4
+	rtuMaxSize       = 256
+	rtuExceptionSize = 5
 )
 
 // NewClientDefault 根据给定的参数创建一个 modbus client.
@@ -196,6 +197,7 @@ func (cli *client) Send(aduRequest []byte) (aduResponse []byte, err error) {
 	}
 	log.Printf("TX:% X \n", aduRequest)
 	functionalCode := aduRequest[1]
+	functionFail := aduRequest[1] & 0x80
 	bytesToRead := calculateResponseLength(aduRequest)
 	delay := cli.calculateDelay((len(aduRequest) + bytesToRead) * int(aduRequest[1]))
 	time.Sleep(delay)
@@ -212,6 +214,9 @@ func (cli *client) Send(aduRequest []byte) (aduResponse []byte, err error) {
 	}
 	if data[1] == functionalCode {
 		aduResponse = data[:n]
+	} else if data[1] == functionFail {
+		// 串口返回错误码
+		aduRequest = data[:n]
 	} else {
 		err = fmt.Errorf("无响应数据")
 		return
