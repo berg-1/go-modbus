@@ -108,6 +108,10 @@ func (cli *client) SetSlaveId(id byte) {
 	cli.slaveId = id
 }
 
+func (cli *client) String() string {
+	return "Slave ID " + string(cli.slaveId)
+}
+
 // Encode 将 PDU 转换成帧并返回
 func (cli *client) Encode(pdu *ProtocolDataUnit) (adu []byte, err error) {
 	length := len(pdu.Data) + 4
