@@ -216,7 +216,7 @@ func (cli *client) Send(aduRequest []byte) (aduResponse []byte, err error) {
 		aduResponse = data[:n]
 	} else if data[1] == functionFail {
 		// 串口返回错误码
-		aduRequest = data[:n]
+		aduRequest = data[:rtuExceptionSize]
 	} else {
 		err = fmt.Errorf("无响应数据")
 		return
