@@ -14,12 +14,12 @@ func GetPorts() (ports []string, err error) {
 		return
 	}
 	if len(ports) == 0 {
-		log.Fatal("No serial ports found!")
+		log.Fatal("未找到串口!")
 		return
 	}
 	// Print the list of detected ports
 	for _, port := range ports {
-		log.Printf("Found port: %v\n", port)
+		log.Printf("找到端口: %v\n", port)
 	}
 	return
 }

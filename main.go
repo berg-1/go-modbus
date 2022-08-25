@@ -7,10 +7,7 @@ import (
 )
 
 func main() {
-	clients := AutoClient()
-	for _, cli := range clients {
-		log.Printf("\n\nFrom cli%v", cli)
-	}
+	_ = AutoClient()
 
 	//getTemperAndHumidity()
 }

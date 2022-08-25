@@ -70,6 +70,7 @@ func AutoClient() (clients []Client) {
 			log.Printf("尝试连接 %02d@%s", id, ports[i])
 			res, err := client.ReadInputRegisters(1, 1)
 			if err != nil {
+				log.Printf("连接 %02d@%s 失败\n", id, ports[i])
 				continue
 			}
 			log.Printf("连接 站号%02d@端口%s 成功，RX: % X", id, ports[i], res)
