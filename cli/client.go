@@ -1,4 +1,4 @@
-package main
+package cli
 
 import (
 	"encoding/binary"
@@ -13,6 +13,7 @@ const (
 	rtuMinSize       = 4
 	rtuMaxSize       = 256
 	rtuExceptionSize = 5
+	numSlavesScan    = 20
 )
 
 // NewClientDefault 根据给定的参数创建一个 modbus client.
@@ -27,7 +28,7 @@ func NewClientDefault(mode *serial.Mode, salveId byte) Client {
 	return &client{*mode, port, salveId}
 }
 
-func NewClientExample(slaveId byte) Client {
+func NewClient(slaveId byte) (cli Client, err error) {
 	// 定义 Mode
 	mode := &serial.Mode{
 		BaudRate: 9600,
@@ -39,9 +40,10 @@ func NewClientExample(slaveId byte) Client {
 	port, err := util.ConnectDefault(mode)
 	if err = port.SetReadTimeout(time.Second); err != nil {
 		log.Fatal("连接失败")
-		return nil
+		return
 	}
-	return &client{*mode, port, slaveId}
+	cli = &client{*mode, port, slaveId}
+	return
 }
 
 func CustomClient(mode *serial.Mode, portName string) Client {
@@ -52,7 +54,36 @@ func CustomClient(mode *serial.Mode, portName string) Client {
 	return &client{*mode, port, 0}
 }
 
-func AutoClient() (clients []Client) {
+func TempHumClient() (client Client, err error) {
+	// 定义 Mode
+	mode := &serial.Mode{
+		BaudRate: 9600,
+		Parity:   serial.NoParity,
+		DataBits: 8,
+		StopBits: serial.OneStopBit,
+	}
+	ports, err := util.GetPorts()
+	if err != nil {
+		log.Fatal(err)
+	}
+	for i := range ports {
+		client = CustomClient(mode, ports[i])
+		for id := 1; id <= numSlavesScan; id++ {
+			client.SetSlaveId(byte(id))
+			log.Printf("尝试连接 %02d@%s", id, ports[i])
+			_, err = client.ReadInputRegisters(1, 1)
+			if err != nil {
+				log.Printf("连接 %02d@%s 失败\n", id, ports[i])
+				continue
+			}
+			log.Printf("连接 站号%02d@端口%s 成功", id, ports[i])
+			return
+		}
+	}
+	return
+}
+
+func ChangeSlaveId() {
 	// 定义 Mode
 	mode := &serial.Mode{
 		BaudRate: 9600,
@@ -66,7 +97,8 @@ func AutoClient() (clients []Client) {
 	}
 	for i := range ports {
 		client := CustomClient(mode, ports[i])
-		for id := 1; id <= 20; id++ {
+		flag := false
+		for id := 1; id <= numSlavesScan; id++ {
 			client.SetSlaveId(byte(id))
 			log.Printf("尝试连接 %02d@%s", id, ports[i])
 			res, err := client.ReadInputRegisters(1, 1)
@@ -74,27 +106,46 @@ func AutoClient() (clients []Client) {
 				log.Printf("连接 %02d@%s 失败\n", id, ports[i])
 				continue
 			}
-			log.Printf("连接 站号%02d@端口%s 成功，RX: % X", id, ports[i], res)
+			log.Printf("连接 站号%02d@端口%s 成功", id, ports[i])
 			fmt.Println("输入想要更改的站号( 输入`0`不更改继续扫描 ):")
 			var to uint16
 			_, err = fmt.Scanln(&to)
 			if err != nil {
 				log.Println(err)
-				return nil
 			}
 			if to != 0 {
 				_, err = client.WriteSingleRegister(257, to)
-				//client.SetSlaveId(byte(to))
-				fmt.Println("更改成功，请重新插拔设备")
+				log.Println("更改成功，请重新插拔设备，按回车继续.")
+				if err = client.Close(); err != nil {
+					log.Fatal("Close client failed")
+				}
+				_, _ = fmt.Scanln(&to)
+				client = CustomClient(mode, ports[i])
+				client.SetSlaveId(byte(to))
+				res, err = client.ReadHoldingRegisters(257, 1)
+				change, _ := util.BytesToIntU(res)
+				log.Printf("寄存器中站号：%d", change)
+				if change == int(to) {
+					fmt.Printf("更改成功，是否需要继续更改站号(y/N):  ")
+					var yes string
+					_, _ = fmt.Scan(&yes)
+					if yes == "y" {
+						log.Println("继续更改")
+					} else {
+						log.Println("不更改，程序退出")
+						flag = true
+						break
+					}
+				}
+			}
+			if flag {
 				break
 			}
-			clients = append(clients, client)
 		}
 		if err := client.Close(); err != nil {
 			log.Fatal("Close client failed")
 		}
 	}
-	return
 }
 
 // client 实现 Client 接口
@@ -175,7 +226,7 @@ func (cli *client) send(request *ProtocolDataUnit) (response *ProtocolDataUnit, 
 	}
 	aduResponse, err := cli.Send(adu)
 	if err != nil {
-		log.Println(err, "From send()")
+		//log.Println(err, "From send()")
 		return
 	}
 	response, err = Decode(aduResponse)
@@ -199,7 +250,7 @@ func (cli *client) Send(aduRequest []byte) (aduResponse []byte, err error) {
 	if _, err = cli.port.Write(aduRequest); err != nil {
 		return
 	}
-	log.Printf("TX:% X \n", aduRequest)
+	//log.Printf("TX:% X \n", aduRequest)
 	functionalCode := aduRequest[1]
 	functionFail := aduRequest[1] & 0x80
 	bytesToRead := calculateResponseLength(aduRequest)
