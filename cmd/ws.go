@@ -1,9 +1,13 @@
 package cmd
 
 import (
+	"fmt"
 	"go-oak/cli"
 	"go-oak/util"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -34,32 +38,38 @@ var wsCmd = &cobra.Command{
 				log.Println("没有站可以响应温湿度")
 			}
 		}
+
+		SetupCloseHandler(client)
+
+		//设置要接收的信号
 		for {
-			inputRegTemp, e3 := client.ReadInputRegisters(1, 1)
-			var tf32, hf32 float32
+			inputRegTemp, e3 := client.ReadInputRegisters(1, 2)
 			if e3 == nil {
-				tf32 = util.BytesToFloat(inputRegTemp)
+				res := util.BytesToNFloat(inputRegTemp, 2)
+				fmt.Printf("\r目前温度：%.2f℃ 湿度：%.2f%%", res[0], res[1])
+				time.Sleep(time.Second)
+			} else {
+				log.Println("无法获取温湿度信息")
+				break
 			}
-			inputRegHumidity, e4 := client.ReadInputRegisters(2, 1)
-			if e4 == nil {
-				hf32 = util.BytesToFloat(inputRegHumidity)
-			}
-			log.Printf("目前温度：%.2f℃ 湿度：%.2f%% \n", tf32, hf32)
-			time.Sleep(time.Second)
 		}
 	},
 }
 
+func SetupCloseHandler(client cli.Client) {
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		fmt.Println("\n进程终止，程序退出...")
+		if err := client.Close(); err != nil {
+			log.Fatal("客户端关闭失败")
+		}
+		os.Exit(0)
+	}()
+}
+
 func init() {
 	rootCmd.AddCommand(wsCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// wsCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
 	wsCmd.Flags().Uint8VarP(&slaveId, "slave", "s", 0, "要连接的站号")
 }

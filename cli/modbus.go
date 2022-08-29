@@ -114,4 +114,6 @@ type Client interface {
 	SetSlaveId(id byte)
 	// Close 关闭 Client
 	Close() (cErr error)
+
+	Try(id byte) (err error)
 }

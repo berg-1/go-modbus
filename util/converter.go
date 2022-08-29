@@ -17,6 +17,16 @@ func BytesToFloat(bigEndianBytes []byte) float32 {
 	return float32(tempInt) / 10
 }
 
+func BytesToNFloat(bigEndianBytes []byte, n int) (res []float32) {
+	res = make([]float32, n)
+	count := 0
+	for i := 0; i < n*2; i += 2 {
+		res[count] = BytesToFloat(bigEndianBytes[i : i+2])
+		count++
+	}
+	return
+}
+
 // BytesToIntU 字节数(大端)组转成int(无符号)
 func BytesToIntU(b []byte) (int, error) {
 	if len(b) == 3 {

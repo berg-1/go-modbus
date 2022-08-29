@@ -69,17 +69,23 @@ func TempHumClient() (client Client, err error) {
 	for i := range ports {
 		client = CustomClient(mode, ports[i])
 		for id := 1; id <= numSlavesScan; id++ {
-			client.SetSlaveId(byte(id))
-			log.Printf("尝试连接 %02d@%s", id, ports[i])
-			_, err = client.ReadInputRegisters(1, 1)
-			if err != nil {
-				log.Printf("连接 %02d@%s 失败\n", id, ports[i])
-				continue
+			if err = client.Try(byte(id)); err == nil {
+				log.Printf("连接 站号%02d@端口%s 成功", id, ports[i])
+				return
 			}
-			log.Printf("连接 站号%02d@端口%s 成功", id, ports[i])
-			return
 		}
 	}
+	return
+}
+
+func (cli *client) Try(id byte) (err error) {
+	cli.SetSlaveId(id)
+	//log.Printf("尝试连接 %02d@%s", id, ports[i])
+	_, err = cli.ReadInputRegisters(1, 1)
+	//if err != nil {
+	//log.Printf("连接 %02d@%s 失败\n", id, ports[i])
+	//return
+	//}
 	return
 }
 
@@ -97,51 +103,46 @@ func ChangeSlaveId() {
 	}
 	for i := range ports {
 		client := CustomClient(mode, ports[i])
-		flag := false
+		exit := false
+		skip := make(map[uint16]bool)
 		for id := 1; id <= numSlavesScan; id++ {
-			client.SetSlaveId(byte(id))
-			log.Printf("尝试连接 %02d@%s", id, ports[i])
-			res, err := client.ReadInputRegisters(1, 1)
-			if err != nil {
-				log.Printf("连接 %02d@%s 失败\n", id, ports[i])
-				continue
-			}
-			log.Printf("连接 站号%02d@端口%s 成功", id, ports[i])
-			fmt.Println("输入想要更改的站号( 输入`0`不更改继续扫描 ):")
-			var to uint16
-			_, err = fmt.Scanln(&to)
-			if err != nil {
-				log.Println(err)
-			}
-			if to != 0 {
-				_, err = client.WriteSingleRegister(257, to)
-				log.Println("更改成功，请重新插拔设备，按回车继续.")
-				if err = client.Close(); err != nil {
-					log.Fatal("Close client failed")
-				}
+			if err = client.Try(byte(id)); !skip[uint16(id)] && err == nil {
+				log.Printf("连接 站号%02d@端口%s 成功", id, ports[i])
+				fmt.Println("输入想要更改的站号( 输入`0`不更改继续扫描 ):")
+				var to uint16
 				_, _ = fmt.Scanln(&to)
-				client = CustomClient(mode, ports[i])
-				client.SetSlaveId(byte(to))
-				res, err = client.ReadHoldingRegisters(257, 1)
-				change, _ := util.BytesToIntU(res)
-				log.Printf("寄存器中站号：%d", change)
-				if change == int(to) {
-					fmt.Printf("更改成功，是否需要继续更改站号(y/N):  ")
-					var yes string
-					_, _ = fmt.Scan(&yes)
-					if yes == "y" {
-						log.Println("继续更改")
-					} else {
-						log.Println("不更改，程序退出")
-						flag = true
-						break
+				if to != 0 {
+					_, err = client.WriteSingleRegister(257, to)
+					log.Println("更改成功，请重新插拔设备，按回车继续.")
+					if err = client.Close(); err != nil {
+						log.Fatal("Close client failed")
+					}
+					_, _ = fmt.Scanln(&to)
+					client = CustomClient(mode, ports[i])
+					client.SetSlaveId(byte(to))
+					res, _ := client.ReadHoldingRegisters(257, 1)
+					change, _ := util.BytesToIntU(res)
+					log.Printf("寄存器中站号：%d", change)
+					if change == int(to) {
+						fmt.Printf("更改成功，是否需要继续更改站号(y/N):  ")
+						var yes string
+						_, _ = fmt.Scan(&yes)
+						if yes == "y" {
+							log.Println("继续更改")
+							skip[to] = true
+						} else {
+							log.Println("不更改，程序退出")
+							exit = true
+							break
+						}
 					}
 				}
 			}
-			if flag {
+			if exit {
 				break
 			}
 		}
+		log.Println("遍历完成")
 		if err := client.Close(); err != nil {
 			log.Fatal("Close client failed")
 		}
