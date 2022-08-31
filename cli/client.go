@@ -46,12 +46,13 @@ func NewClient(slaveId byte) (cli Client, err error) {
 	return
 }
 
-func CustomClient(mode *serial.Mode, portName string) Client {
+func CustomClient(mode *serial.Mode, portName string) (cli Client, err error) {
 	port, err := serial.Open(portName, mode)
 	if err != nil {
-		return nil
+		return
 	}
-	return &client{*mode, port, 0}
+	cli = &client{*mode, port, 0}
+	return
 }
 
 func TempHumClient() (client Client, err error) {
@@ -67,7 +68,11 @@ func TempHumClient() (client Client, err error) {
 		log.Fatal(err)
 	}
 	for i := range ports {
-		client = CustomClient(mode, ports[i])
+		client, err = CustomClient(mode, ports[i])
+		if err != nil {
+			log.Printf("端口%s被占用\n", ports[i])
+			continue
+		}
 		for id := 1; id <= numSlavesScan; id++ {
 			if err = client.Try(byte(id)); err == nil {
 				log.Printf("连接 站号%02d@端口%s 成功", id, ports[i])
@@ -80,12 +85,10 @@ func TempHumClient() (client Client, err error) {
 
 func (cli *client) Try(id byte) (err error) {
 	cli.SetSlaveId(id)
-	//log.Printf("尝试连接 %02d@%s", id, ports[i])
 	_, err = cli.ReadInputRegisters(1, 1)
-	//if err != nil {
-	//log.Printf("连接 %02d@%s 失败\n", id, ports[i])
-	//return
-	//}
+	if err != nil {
+		return
+	}
 	return
 }
 
@@ -102,7 +105,11 @@ func ChangeSlaveId() {
 		log.Fatal(err)
 	}
 	for i := range ports {
-		client := CustomClient(mode, ports[i])
+		client, err := CustomClient(mode, ports[i])
+		if err != nil {
+			log.Println("端口被占用")
+			continue
+		}
 		exit := false
 		skip := make(map[uint16]bool)
 		for id := 1; id <= numSlavesScan; id++ {
@@ -118,7 +125,6 @@ func ChangeSlaveId() {
 						log.Fatal("Close client failed")
 					}
 					_, _ = fmt.Scanln(&to)
-					client = CustomClient(mode, ports[i])
 					client.SetSlaveId(byte(to))
 					res, _ := client.ReadHoldingRegisters(257, 1)
 					change, _ := util.BytesToIntU(res)

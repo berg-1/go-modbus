@@ -36,6 +36,7 @@ var wsCmd = &cobra.Command{
 			client, err = cli.TempHumClient()
 			if err != nil {
 				log.Println("没有站可以响应温湿度")
+				return
 			}
 		}
 
